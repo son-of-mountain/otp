@@ -1,11 +1,30 @@
+### Strucutre de projet : 
 
-Lancer le projet :
+```yaml
+/Projet
+├── .env                     # Variables d'environnement
+├── docker-compose.yml       # Orchestrateur
+├── nginx-setup/
+│   └── default.conf         # Config Nginx
+├── Front/
+│   ├── Dockerfile           # Image Frontend
+│   └── index.html, ...
+└── TpDJFSpring/             # Dossier Backend
+    ├── Dockerfile           # Image Backend
+    └── src, build.gradle...
+```
+### Lancer le projet :
 
 ```bash
 docker compose up --build -d
 ```
 
-Accéder à l'application :
+### Documentation des APIs: 
+
+disponible sur http://localhost:8081/swagger-ui/index.html
+
+
+### Accéder à l'application :
 
 Une fois lancé, tout se passe sur le port 80 (Nginx) :
 
@@ -34,7 +53,7 @@ EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-Egalement, ajouter le `Dockerfile` dans le dossier de frontend `../Front`:
+Egalement, j'ai ajouter le `Dockerfile` dans le dossier de frontend `../Front`:
 
 ```Dockerfile
 # On utilise une image Python ultra-légère (Alpine)
@@ -48,7 +67,6 @@ EXPOSE 8000
 CMD ["python3", "-m", "http.server", "8000"]
 ```
 
-Modifier l'ancien `docker-compose` pour prendre en compte la dockeristaion :
 
 ```yaml
 version: '3.8'
