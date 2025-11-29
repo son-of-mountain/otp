@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # 1. Base de données
   mysql:
     image: mysql:8
     container_name: mysql8.0
@@ -12,6 +13,11 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    # 👇 AJOUT MAJEUR : On vérifie que MySQL est vivant
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
   phpmyadmin:
     image: phpmyadmin:latest
@@ -21,6 +27,47 @@ services:
       PMA_PORT: 3306
     ports:
       - "8080:80"
+    depends_on:
+      mysql:
+        condition: service_healthy # Attend aussi que MySQL soit prêt
+
+  # 2. Backend (Spring Boot + Gradle)
+  backend-service:
+    build: ./TpDJFSpring
+    container_name: backend-container
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      # On utilise bien 'mysql' comme nom d'hôte ici 👇
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/mydb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      mysql:
+        condition: service_healthy # 👈 LA CLÉ DU SUCCÈS : Attend le feu vert du healthcheck
+
+  # 3. Frontend (Python HTTP Server)
+  frontend-service:
+    build: ./Front
+    container_name: frontend-container
+    ports:
+      - "8000:8000"
+    depends_on:
+      - backend-service
+
+  # 4. Nginx (Proxy)
+  nginx-proxy:
+    image: nginx:stable
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-setup/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend-service
+      - backend-service
 
 volumes:
-  mysql_data:
+  mysql_data: {}
