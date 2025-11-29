@@ -1,0 +1,92 @@
+openapi: 3.0.3
+info:
+  title: API Authentification 2FA (TP DJF)
+  description: API permettant de gérer l'authentification à double facteur via SMS (OTP).
+  version: 1.0.0
+  contact:
+    name: Étudiant TP DJF
+
+servers:
+  - url: http://localhost
+    description: Serveur Nginx (Production locale)
+  - url: http://localhost:8081
+    description: Serveur Backend Direct (Développement)
+
+paths:
+  /api/auth/send-sms:
+    post:
+      summary: Demander l'envoi d'un code OTP
+      description: Génère un code OTP, le sauvegarde en base de données et tente de l'envoyer via l'API SMS de l'université.
+      operationId: sendSms
+      requestBody:
+        description: Numéro de téléphone de l'utilisateur
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  example: "0612345678"
+                  description: Le numéro de téléphone au format français.
+      responses:
+        '200':
+          description: Succès - Code envoyé ou simulé.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Code OTP envoyé par SMS"
+        '400':
+          description: Erreur métier (Numéro manquant, délai de 30s non respecté, etc.)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Veuillez attendre 30 secondes avant de renvoyer un code."
+        '500':
+          description: Erreur interne du serveur
+
+  /api/auth/verify-code:
+    post:
+      summary: Vérifier le code OTP
+      description: Compare le code fourni par l'utilisateur avec celui stocké en base de données (hashé).
+      operationId: verifyCode
+      requestBody:
+        description: Couple Numéro + Code reçu
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - code
+              properties:
+                phone:
+                  type: string
+                  example: "0612345678"
+                code:
+                  type: string
+                  example: "123456"
+                  description: Le code à 6 chiffres reçu par SMS.
+      responses:
+        '200':
+          description: Authentification réussie.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Succès"
+        '401':
+          description: Échec - Code invalide ou expiré.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Code invalide ou expiré"
+        '500':
+          description: Erreur interne du serveur
