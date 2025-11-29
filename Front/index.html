@@ -2,47 +2,50 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Connexion OTP</title>
+    <title>Connexion Sécurisée</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; }
-        .container { border: 1px solid #ccc; padding: 20px; width: 300px; text-align: center; }
-        input { width: 90%; padding: 10px; margin: 10px 0; }
-        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; background-color: #f9f9f9; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
         .hidden { display: none; }
-        #msg { margin-top: 10px; color: red; font-size: 0.9em; }
+        .error { color: red; font-size: 0.9em; margin-top: 10px; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h2>🔐 Connexion Sécurisée</h2>
+<div class="card">
+    <h2>🔐 Authentification</h2>
 
     <div id="step-phone">
-        <input type="text" id="phoneInput" placeholder="Votre numéro (ex: 0612345678)">
-        <button onclick="requestSms()">Recevoir le Code</button>
+        <p>Entrez votre numéro pour recevoir un code.</p>
+        <input type="text" id="phoneInput" placeholder="Ex: 0612345678">
+        <button onclick="sendSms()" id="btnSend">Recevoir le code</button>
     </div>
 
     <div id="step-otp" class="hidden">
         <p>Code envoyé au <b id="displayPhone"></b></p>
-        <input type="text" id="otpInput" placeholder="Entrez le code reçu">
+        <input type="text" id="otpInput" placeholder="Code à 6 chiffres">
         <button onclick="verifyCode()">Valider</button>
+        <p style="font-size:0.8em; color:blue; cursor:pointer" onclick="location.reload()">Changer de numéro</p>
     </div>
 
-    <p id="msg"></p>
+    <p id="msg" class="error"></p>
 </div>
 
 <script>
     const API_URL = "http://localhost/api/auth";
 
-    async function requestSms() {
+    async function sendSms() {
         const phone = document.getElementById('phoneInput').value;
         const msg = document.getElementById('msg');
+        const btn = document.getElementById('btnSend');
         
-        msg.textContent = "Envoi en cours...";
-        
+        msg.textContent = "";
+        btn.disabled = true;
+        btn.textContent = "Envoi..."; // Feedback utilisateur
+
         try {
-            // APPEL VERS TON NOUVEL ENDPOINT /send-sms
             const response = await fetch(`${API_URL}/send-sms`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -53,13 +56,15 @@
                 document.getElementById('step-phone').classList.add('hidden');
                 document.getElementById('step-otp').classList.remove('hidden');
                 document.getElementById('displayPhone').textContent = phone;
-                msg.textContent = "";
             } else {
-                const text = await response.text();
-                msg.textContent = "Erreur : " + text;
+                // Affiche l'erreur du back (ex: "Attendre 30s")
+                msg.textContent = await response.text();
             }
         } catch (error) {
-            msg.textContent = "Erreur de connexion au serveur.";
+            msg.textContent = "Erreur de communication serveur.";
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Recevoir le code";
         }
     }
 
@@ -68,7 +73,6 @@
         const code = document.getElementById('otpInput').value;
         
         try {
-            // APPEL VERS TON NOUVEL ENDPOINT /verify-code
             const response = await fetch(`${API_URL}/verify-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -85,6 +89,5 @@
         }
     }
 </script>
-
 </body>
 </html>
