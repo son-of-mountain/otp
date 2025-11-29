@@ -1,12 +1,6 @@
-/* Front -> Backend integration (simple fetch to Spring Boot API)
-   Base API: http://localhost:8081/api/users
-   The backend expects fields: nom, email, role, password
-   The front keeps firstName/lastName inputs; we send nom = firstName + ' ' + lastName
-*/
-
 const API_BASE = 'http://localhost:8081/api/users';
 
-// Elements
+
 const usersTableBody = document.querySelector('#usersTable tbody');
 const btnNew = document.getElementById('btnNew');
 const formPanel = document.getElementById('formPanel');

@@ -20,30 +20,30 @@
 
     <div id="step-phone">
         <input type="text" id="phoneInput" placeholder="Votre numéro (ex: 0612345678)">
-        <button onclick="requestSms()">Recevoir le Code</button>
+        <button onclick="sendOtp()">Recevoir le Code</button>
     </div>
 
     <div id="step-otp" class="hidden">
         <p>Code envoyé au <b id="displayPhone"></b></p>
         <input type="text" id="otpInput" placeholder="Entrez le code reçu">
-        <button onclick="verifyCode()">Valider</button>
+        <button onclick="verifyOtp()">Valider</button>
     </div>
 
     <p id="msg"></p>
 </div>
 
 <script>
+    // URL de ton Backend via Nginx
     const API_URL = "http://localhost/api/auth";
 
-    async function requestSms() {
+    async function sendOtp() {
         const phone = document.getElementById('phoneInput').value;
         const msg = document.getElementById('msg');
         
         msg.textContent = "Envoi en cours...";
         
         try {
-            // APPEL VERS TON NOUVEL ENDPOINT /send-sms
-            const response = await fetch(`${API_URL}/send-sms`, {
+            const response = await fetch(`${API_URL}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone })
@@ -63,22 +63,23 @@
         }
     }
 
-    async function verifyCode() {
+    async function verifyOtp() {
         const phone = document.getElementById('phoneInput').value;
         const code = document.getElementById('otpInput').value;
         
         try {
-            // APPEL VERS TON NOUVEL ENDPOINT /verify-code
-            const response = await fetch(`${API_URL}/verify-code`, {
+            const response = await fetch(`${API_URL}/verify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, code: code })
             });
 
             if (response.ok) {
-                window.location.href = "auth/success.html";
+                // Consigne : Page de validation
+                window.location.href = "success.html";
             } else {
-                window.location.href = "auth/error.html";
+                // Consigne : Page d'erreur
+                window.location.href = "error.html";
             }
         } catch (error) {
             alert("Erreur technique");
