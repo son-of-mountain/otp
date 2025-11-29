@@ -24,40 +24,43 @@ public class OtpService {
     private OtpRepository otpRepository;
 
     private final String SMS_SERVER_URL = "http://dosipa.univ-brest.fr";
-    private final String API_KEY = "DOSITPDJF"; // Mets ta clé ici si le prof t'en donne une
+    private final String API_KEY = "DOSITPDJF"; // ⚠️ Mets ta clé si tu l'as
     private final RestTemplate restTemplate = new RestTemplate();
 
     public String generateAndSendOtp(String phoneNumber) {
-        // 1. Règle des 30 secondes (Anti-spam)
+        // --- CONTRAINTE 1 : Délai de 30 secondes ---
         Optional<Otp> lastOtp = otpRepository.findTopByPhoneNumberOrderByIdDesc(phoneNumber);
         if (lastOtp.isPresent()) {
-            if (lastOtp.get().getExpiryDate().minusMinutes(2).plusSeconds(30).isAfter(LocalDateTime.now())) {
-                throw new RuntimeException("Veuillez attendre 30 secondes entre deux demandes.");
+            // Si le dernier code a été créé il y a moins de 30 secondes
+            // (ExpiryDate - 2min = CreationDate)
+            LocalDateTime creationDate = lastOtp.get().getExpiryDate().minusMinutes(2);
+            if (creationDate.plusSeconds(30).isAfter(LocalDateTime.now())) {
+                throw new RuntimeException("Veuillez attendre 30 secondes avant de renvoyer un code.");
             }
         }
 
-        // 2. VERIFICATION DU SERVEUR (PING)
+        // --- CONTRAINTE 2 : Health Check (Ping) ---
         if (!pingServer()) {
-            // Si le ping échoue, on ne bloque pas le TP, on passe en simulation direct
-            System.err.println("Le serveur SMS ne répond pas au PING.");
+            System.err.println("⚠️ Serveur SMS injoignable (Ping KO). Passage en mode secours.");
+            // On ne lance pas d'exception pour ne pas bloquer le TP, mais en prod on pourrait.
         }
 
-        // 3. Génération du code
+        // Génération du code
         String code = String.valueOf(new Random().nextInt(900000) + 100000);
 
-        // 4. Tentative d'envoi (SEND-SMS)
-        boolean sent = trySendSms(phoneNumber, code);
+        // --- CONTRAINTE 3 : Retry (2 tentatives) ---
+        boolean sent = sendSmsWithRetry(phoneNumber, code);
 
-        // 5. Sauvegarde en BDD
+        // --- CONTRAINTE 4 : Expiration 2 minutes ---
         String hashedCode = hashCode(code);
+        // On sauvegarde l'heure d'expiration = Maintenant + 2 min
         Otp otp = new Otp(phoneNumber, hashedCode, LocalDateTime.now().plusMinutes(2));
         otpRepository.save(otp);
 
         if (sent) return "Code envoyé par SMS";
-        return "Mode Simulation : Code généré (voir logs)";
+        return "MODE SIMULATION : Code = " + code + " (Voir logs console)";
     }
 
-    // Appelle http://dosipa.univ-brest.fr/ping
     private boolean pingServer() {
         try {
             restTemplate.getForObject(SMS_SERVER_URL + "/ping", String.class);
@@ -67,38 +70,47 @@ public class OtpService {
         }
     }
 
-    // Appelle http://dosipa.univ-brest.fr/send-sms
-    private boolean trySendSms(String phone, String code) {
-        try {
-            System.out.println("Appel API send-sms vers " + phone + "...");
-            String url = SMS_SERVER_URL + "/send-sms";
+    private boolean sendSmsWithRetry(String phone, String code) {
+        int attempts = 0;
+        // On essaie 2 fois maximum
+        while (attempts < 2) {
+            try {
+                System.out.println("Tentative d'envoi SMS n°" + (attempts + 1) + "...");
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            if (!API_KEY.isEmpty()) headers.set("x-api-key", API_KEY);
+                String url = SMS_SERVER_URL + "/send-sms";
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                if (!API_KEY.isEmpty()) headers.set("x-api-key", API_KEY);
 
-            Map<String, String> body = new HashMap<>();
-            body.put("to", phone);
-            body.put("message", "Votre code OTP est : " + code);
+                Map<String, String> body = new HashMap<>();
+                body.put("to", phone);
+                body.put("message", "Votre code OTP est : " + code);
 
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
-            restTemplate.postForEntity(url, request, String.class);
+                HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+                restTemplate.postForEntity(url, request, String.class);
 
-            return true; // Succès réel
-        } catch (Exception e) {
-            // SI ERREUR (401 Unauthorized ou autre), ON SIMULE
-            System.err.println("API 'send-sms' a échoué (" + e.getMessage() + ") -> MODE SIMULATION ACTIVÉ");
-            System.out.println("========================================");
-            System.out.println("⚠️  CODE OTP POUR " + phone + " : " + code + "  ⚠️");
-            System.out.println("========================================");
-            return false; // Retourne faux mais l'appli continue
+                return true; // Succès !
+            } catch (Exception e) {
+                attempts++;
+                System.err.println("Échec tentative " + attempts + " : " + e.getMessage());
+                try { Thread.sleep(1000); } catch (InterruptedException ie) {} // Pause 1s
+            }
         }
+
+        // Si on arrive ici, les 2 tentatives ont échoué
+        System.out.println("========================================");
+        System.out.println("❌ ÉCHEC ENVOI SMS RÉEL (Pas de clé ? Serveur HS ?)");
+        System.out.println("👉 CODE DE SECOURS : " + code);
+        System.out.println("========================================");
+        return false;
     }
 
     public boolean validateOtp(String phoneNumber, String userCode) {
         return otpRepository.findTopByPhoneNumberOrderByIdDesc(phoneNumber)
                 .map(otp -> {
+                    // Vérif Expiration
                     if (otp.getExpiryDate().isBefore(LocalDateTime.now())) return false;
+                    // Vérif Code Hashé
                     return otp.getCode().equals(hashCode(userCode));
                 })
                 .orElse(false);
